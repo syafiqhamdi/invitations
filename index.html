@@ -1,89 +1,137 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Undangan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+
   <style>
-    body.locked {
-      overflow: hidden;
+    :root {
+      --overlayFadeMs: 500ms;
     }
+    * { box-sizing: border-box; }
+    body.locked { overflow: hidden; }
+
     .overlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: url("top-view-wedding-floral-frame.jpg") no-repeat center center;
-      background-size: cover;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      color: #333;
+      position: fixed; inset: 0;
+      background: url("top-view-wedding-floral-frame.jpg") no-repeat center/cover;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; z-index: 1000; color: #333;
       font-family: "Great Vibes", cursive;
-      z-index: 1000;
-      text-align: center;
+      transition: opacity var(--overlayFadeMs) ease;
     }
-    .overlay h1 {
-      font-size: 3rem;
-      margin-bottom: 10px;
-      color: #6b4226;
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .overlay h1 { font-size: 3rem; margin: 0 0 10px; color: #6b4226; }
+    .overlay p  { font-size: 1.2rem; margin: 0 0 20px; font-family: "Times New Roman", serif; }
+    .overlay .btn {
+      padding: 12px 24px; font-size: 1rem; cursor: pointer;
+      border: none; border-radius: 10px;
+      background: #d4af37; color: #fff; font-weight: bold;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.25);
     }
-    .overlay p {
-      font-size: 1.3rem;
-      margin-bottom: 20px;
-      font-family: "Times New Roman", serif;
-    }
-    .overlay button {
-      padding: 12px 24px;
-      font-size: 1rem;
-      cursor: pointer;
-      border: none;
-      border-radius: 8px;
-      background: #d4af37; /* warna emas */
-      color: white;
-      font-weight: bold;
-    }
+
     .content {
-      min-height: 200vh;
-      padding: 50px;
-      background: linear-gradient(to bottom, pink, lightblue);
-      text-align: center;
-      font-size: 2rem;
+      min-height: 200vh; padding: 56px 24px; text-align: center;
+      background: linear-gradient(to bottom, #ffe3ec, #e3f2ff);
+      font-size: 2rem; font-family: system-ui, sans-serif;
+    }
+
+    /* Tombol bantu kalau autoplay ditolak (opsional, non-intrusif) */
+    .audio-hint {
+      position: fixed; right: 12px; bottom: 12px; z-index: 10;
+      font-size: .9rem; padding: 8px 12px; border-radius: 8px;
+      border: 1px solid #ddd; background: #fff; display: none;
     }
   </style>
 </head>
 <body class="locked">
-  <!-- Tampilan awal seperti undangan -->
+  <!-- Audio (di root repo: romantis.mp3 & meme-laugh.mp3) -->
+  <audio id="musicInvite" src="Beautiful-In-White.mp3" preload="auto" loop></audio>
+  <audio id="musicMeme"   src="cat-laugh-meme-1.mp3" preload="auto"></audio>
+
+  <!-- Layar undangan -->
   <div class="overlay" id="overlay">
     <h1>Undangan Pernikahan</h1>
     <p id="kepada">Kepada Yth. Tamu Undangan</p>
-    <button onclick="openPrank()">Buka Undangan</button>
+    <button class="btn" id="btnOpen">Buka Undangan</button>
   </div>
 
   <!-- Konten prank -->
-  <div class="content" id="content" style="display:none;">
-    YAA KALIIII .....  
+  <main class="content" id="content" style="display:none;">
+    YAAA KALIII...
     <br><br>
-    <img src="https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif" alt="prank gif">
-  </div>
+    <img src="prank.gif" alt="Gif Prank" style="max-width: 520px; width: 90%; height: auto;">
+  </main>
+
+  <!-- Tombol bantu jika audio diblokir -->
+  <button class="audio-hint" id="btnEnableAudio">Aktifkan Musik</button>
 
   <script>
-    // Ambil parameter "nama" dari URL
+    // --- Nama tamu dari URL (?nama=...) ---
     const urlParams = new URLSearchParams(window.location.search);
     const nama = urlParams.get('nama');
     const kepada = document.getElementById('kepada');
-
     if (nama && nama.trim() !== "") {
-      kepada.innerText = "Kepada Yth. " + nama;
-    } else {
-      kepada.innerText = "Kepada Yth. Tamu Undangan";
+      const cap = nama.replace(/\b\p{L}/gu, c => c.toUpperCase());
+      kepada.textContent = "Kepada Yth. " + cap;
     }
 
-    function openPrank() {
-      document.body.classList.remove("locked");
-      document.getElementById("overlay").style.display = "none";
-      document.getElementById("content").style.display = "block";
+    const overlay = document.getElementById('overlay');
+    const content = document.getElementById('content');
+    const btnOpen = document.getElementById('btnOpen');
+    const btnEnableAudio = document.getElementById('btnEnableAudio');
+
+    const musicInvite = document.getElementById('musicInvite');
+    const musicMeme   = document.getElementById('musicMeme');
+
+    // Volume awal
+    musicInvite.volume = 0.7;
+    musicMeme.volume   = 1.0;
+
+    // Helper: coba play, kalau gagal (autoplay blocked) tampilkan tombol enable
+    async function tryPlay(el) {
+      try {
+        await el.play();
+        btnEnableAudio.style.display = 'none';
+        return true;
+      } catch {
+        btnEnableAudio.style.display = 'inline-block';
+        return false;
+      }
     }
+
+    // Mulai musik undangan saat interaksi pertama di overlay (tap/klik di mana saja)
+    let inviteStarted = false;
+    function startInviteMusicOnce() {
+      if (inviteStarted) return;
+      inviteStarted = true;
+      tryPlay(musicInvite);
+    }
+    overlay.addEventListener('pointerdown', startInviteMusicOnce, { once: true });
+    // Jaga-jaga kalau user langsung klik tombol
+    btnOpen.addEventListener('click', startInviteMusicOnce, { once: true });
+
+    // Tombol bantuan kalau autoplay ditolak
+    btnEnableAudio.addEventListener('click', async () => {
+      await tryPlay(musicInvite);
+    });
+
+    // Klik "Buka Undangan": buka prank + ganti musik
+    btnOpen.addEventListener('click', async () => {
+      // Matikan musik undangan, ganti ke meme
+      musicInvite.pause();
+      musicInvite.currentTime = 0;
+      await tryPlay(musicMeme);
+
+      // Tampilkan konten & hilangkan overlay dengan fade
+      document.body.classList.remove('locked');
+      content.style.display = 'block';
+      overlay.classList.add('hidden');
+      setTimeout(() => { overlay.style.display = 'none'; }, 520); // > --overlayFadeMs
+    });
   </script>
 </body>
 </html>

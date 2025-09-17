@@ -70,70 +70,152 @@
   <button class="audio-hint" id="btnEnableAudio">Aktifkan Musik</button>
 
   <script>
-    // --- Nama tamu dari URL (?nama=...) ---
-    const urlParams = new URLSearchParams(window.location.search);
-    const nama = urlParams.get('nama');
-    const kepada = document.getElementById('kepada');
-    if (nama && nama.trim() !== "") {
-      const cap = nama.replace(/\b\p{L}/gu, c => c.toUpperCase());
-      kepada.textContent = "Kepada Yth. " + cap;
+  // --- Ambil nama tamu (tetap seperti sebelumnya) ---
+  const urlParams = new URLSearchParams(window.location.search);
+  const nama = urlParams.get('nama');
+  const kepada = document.getElementById('kepada');
+  if (nama && nama.trim() !== "") {
+    const cap = nama.replace(/\b\p{L}/gu, c => c.toUpperCase());
+    kepada.textContent = "Kepada Yth. " + cap;
+  }
+
+  // --- Audio refs ---
+  const musicInvite = document.getElementById('musicInvite'); // romantis.mp3
+  const musicMeme   = document.getElementById('musicMeme');   // meme-laugh.mp3
+  musicInvite.volume = 0.7;
+  musicMeme.volume   = 1.0;
+
+  const overlay = document.getElementById('overlay');
+  const content = document.getElementById('content');
+  const btnOpen = document.getElementById('btnOpen');
+  const btnEnableAudio = document.getElementById('btnEnableAudio');
+
+  // --- Definisikan cue bawaan (opsional) ---
+  // Misal reff dimulai 45s berakhir 75s
+  const cues = {
+    reff: { start: 40, end: 180 },     // loop 45–75 detik
+  };
+
+  // --- Baca parameter URL untuk kontrol start/loop segmen ---
+  function getCueFromURL() {
+    const cueName = urlParams.get('cue');
+    const startParam = urlParams.get('start');
+    const endParam = urlParams.get('end');
+
+    if (cueName && cues[cueName]) {
+      return { start: cues[cueName].start, end: cues[cueName].end };
     }
 
-    const overlay = document.getElementById('overlay');
-    const content = document.getElementById('content');
-    const btnOpen = document.getElementById('btnOpen');
-    const btnEnableAudio = document.getElementById('btnEnableAudio');
+    const start = startParam ? Number(startParam) : null;
+    const end   = endParam   ? Number(endParam)   : null;
+    if (Number.isFinite(start)) {
+      return { start, end: Number.isFinite(end) ? end : null };
+    }
+    return null; // tidak ada parameter khusus
+  }
 
-    const musicInvite = document.getElementById('musicInvite');
-    const musicMeme   = document.getElementById('musicMeme');
+  const segment = getCueFromURL(); // {start, end} atau null
 
-    // Volume awal
-    musicInvite.volume = 1.0;
-    musicMeme.volume   = 1.0;
+  // --- Helper: fade in (biar halus saat mulai di tengah lagu) ---
+  async function fadeIn(audio, durationMs = 600, targetVol = 0.7) {
+    const steps = 20;
+    const step = targetVol / steps;
+    const interval = durationMs / steps;
+    audio.volume = 0;
+    try { await audio.play(); } catch {}
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      audio.volume = Math.min(targetVol, i * step);
+      if (i >= steps) clearInterval(timer);
+    }, interval);
+  }
 
-    // Helper: coba play, kalau gagal (autoplay blocked) tampilkan tombol enable
-    async function tryPlay(el) {
-      try {
-        await el.play();
-        btnEnableAudio.style.display = 'none';
-        return true;
-      } catch {
-        btnEnableAudio.style.display = 'inline-block';
-        return false;
+  // --- Play dari waktu tertentu (handle metadata) ---
+  async function playFrom(audio, startSec = 0, loopEndSec = null) {
+    const setAndPlay = async () => {
+      // clamp biar tidak melebihi durasi
+      const s = Math.max(0, Math.min(startSec, (audio.duration || startSec)));
+      audio.currentTime = s;
+      if (loopEndSec && loopEndSec > s) {
+        // loop segmen s..loopEndSec
+        audio.loop = false; // kita loop manual
+        audio.addEventListener('timeupdate', onTimeUpdate);
+        function onTimeUpdate() {
+          if (audio.currentTime >= loopEndSec) {
+            audio.currentTime = s; // balik ke awal segmen
+          }
+        }
+      } else {
+        audio.loop = true; // putar penuh kalau tidak segmen
       }
-    }
+      // gunakan fadeIn agar transisi halus (atau pakai audio.play())
+      await fadeIn(audio, 500, audio.volume || 0.7);
+    };
 
-    // Mulai musik undangan saat interaksi pertama di overlay (tap/klik di mana saja)
-    let inviteStarted = false;
-    function startInviteMusicOnce() {
-      if (inviteStarted) return;
-      inviteStarted = true;
-      tryPlay(musicInvite);
+    if (audio.readyState >= 1) {
+      await setAndPlay();
+    } else {
+      audio.addEventListener('loadedmetadata', setAndPlay, { once: true });
+      try { await audio.load(); } catch {}
     }
-    overlay.addEventListener('pointerdown', startInviteMusicOnce, { once: true });
-    // Jaga-jaga kalau user langsung klik tombol
-    btnOpen.addEventListener('click', startInviteMusicOnce, { once: true });
+  }
 
-    // Tombol bantuan kalau autoplay ditolak
-    btnEnableAudio.addEventListener('click', async () => {
+  // --- Coba play helper (tampilkan tombol enable jika gagal autoplay) ---
+  async function tryPlay(el) {
+    try {
+      await el.play();
+      btnEnableAudio.style.display = 'none';
+      return true;
+    } catch {
+      btnEnableAudio.style.display = 'inline-block';
+      return false;
+    }
+  }
+
+  // --- Mulai musik undangan saat interaksi pertama di overlay ---
+  let inviteStarted = false;
+  async function startInviteMusicOnce() {
+    if (inviteStarted) return;
+    inviteStarted = true;
+
+    // Jika ada parameter start/cue → mulai dari situ; kalau tidak → dari 0
+    if (segment) {
+      musicInvite.volume = 0.7; // target
+      await playFrom(musicInvite, segment.start, segment.end || null);
+    } else {
+      await tryPlay(musicInvite); // mulai normal
+    }
+  }
+  overlay.addEventListener('pointerdown', startInviteMusicOnce, { once: true });
+  btnOpen.addEventListener('click', startInviteMusicOnce, { once: true });
+
+  // Tombol bantuan jika autoplay diblokir
+  btnEnableAudio.addEventListener('click', async () => {
+    if (segment) {
+      await playFrom(musicInvite, segment.start, segment.end || null);
+    } else {
       await tryPlay(musicInvite);
-    });
+    }
+  });
 
-    // Klik "Buka Undangan": buka prank + ganti musik
-    btnOpen.addEventListener('click', async () => {
-      // Matikan musik undangan, ganti ke meme
-      musicInvite.pause();
-      musicInvite.currentTime = 0;
-      await tryPlay(musicMeme);
+  // --- Klik "Buka Undangan": ganti ke musik meme + buka konten ---
+  btnOpen.addEventListener('click', async () => {
+    // Stop romantis, ganti meme tawa
+    musicInvite.pause();
+    musicInvite.currentTime = 0;
+    await tryPlay(musicMeme);
 
-      // Tampilkan konten & hilangkan overlay dengan fade
-      document.body.classList.remove('locked');
-      content.style.display = 'block';
-      overlay.classList.add('hidden');
-      setTimeout(() => { overlay.style.display = 'none'; }, 520); // > --overlayFadeMs
-    });
-  </script>
+    // Buka konten
+    document.body.classList.remove('locked');
+    content.style.display = 'block';
+    overlay.classList.add('hidden');
+    setTimeout(() => { overlay.style.display = 'none'; }, 520);
+  });
+</script>
+
 </body>
 </html>
+
 
 

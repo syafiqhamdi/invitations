@@ -5,12 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Undangan</title>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
-
   <style>
-    :root {
-      --overlayFadeMs: 500ms;
-    }
-    * { box-sizing: border-box; }
     body.locked { overflow: hidden; }
 
     .overlay {
@@ -18,19 +13,19 @@
       background: url("top-view-wedding-floral-frame.jpg") no-repeat center/cover;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      text-align: center; z-index: 1000; color: #333;
+      text-align: center; z-index: 1000;
       font-family: "Great Vibes", cursive;
-      transition: opacity var(--overlayFadeMs) ease;
+      transition: opacity 500ms ease;
     }
     .overlay.hidden { opacity: 0; pointer-events: none; }
 
-    .overlay h1 { font-size: 3rem; margin: 0 0 10px; color: #6b4226; }
-    .overlay p  { font-size: 1.2rem; margin: 0 0 20px; font-family: "Times New Roman", serif; }
-    .overlay .btn {
+    .overlay h1 { font-size: 3rem; margin-bottom: 10px; color: #6b4226; }
+    .overlay p  { font-size: 1.2rem; margin-bottom: 20px; font-family: "Times New Roman", serif; }
+    .overlay .btn-main {
       padding: 12px 24px; font-size: 1rem; cursor: pointer;
       border: none; border-radius: 10px;
       background: #d4af37; color: #fff; font-weight: bold;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+      margin-top: 12px;
     }
 
     .content {
@@ -39,183 +34,93 @@
       font-size: 2rem; font-family: system-ui, sans-serif;
     }
 
-    /* Tombol bantu kalau autoplay ditolak (opsional, non-intrusif) */
-    .audio-hint {
-      position: fixed; right: 12px; bottom: 12px; z-index: 10;
-      font-size: .9rem; padding: 8px 12px; border-radius: 8px;
-      border: 1px solid #ddd; background: #fff; display: none;
+    /* Tombol kecil untuk audio */
+    .btn-audio {
+      position: fixed; right: 12px; bottom: 12px;
+      z-index: 2000; font-size: 0.9rem;
+      padding: 8px 12px; border-radius: 8px;
+      border: 1px solid #ccc; background: #fff;
+      cursor: pointer;
     }
   </style>
 </head>
 <body class="locked">
-  <!-- Audio (di root repo: romantis.mp3 & meme-laugh.mp3) -->
-  <audio id="musicInvite" src="Beautiful-In-White-1.mp3" preload="auto" loop></audio>
-  <audio id="musicMeme"   src="cat-laugh-meme-1.mp3" preload="auto"></audio>
+  <!-- Audio -->
+  <audio id="musicInvite" src="Beautiful-In-White-1.mp3" preload="metadata" loop></audio>
+  <audio id="musicMeme"   src="cat-laugh-meme-1.mp3"></audio>
 
-  <!-- Layar undangan -->
+  <!-- Overlay undangan -->
   <div class="overlay" id="overlay">
     <h1>Undangan Pernikahan</h1>
     <p id="kepada">Kepada Yth. Tamu Undangan</p>
-    <button class="btn" id="btnOpen">Buka Undangan</button>
+    <button class="btn-main" id="btnOpen">Buka Undangan</button>
   </div>
 
   <!-- Konten prank -->
   <main class="content" id="content" style="display:none;">
-    YAAA KALIII...
+    🎉 Surprise! Bukan undangan... tapi PRANK 😆  
     <br><br>
-    <img src="https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif" alt="Gif Prank" style="max-width: 520px; width: 90%; height: auto;">
+    <img src="prank.gif" alt="Gif Prank" style="max-width: 520px; width: 90%; height: auto;">
   </main>
 
-  <!-- Tombol bantu jika audio diblokir -->
-  <button class="audio-hint" id="btnEnableAudio">Aktifkan Musik</button>
+  <!-- Tombol kecil play/pause musik undangan -->
+  <button class="btn-audio" id="btnAudio">▶️ Musik</button>
 
   <script>
-  // --- Ambil nama tamu (tetap seperti sebelumnya) ---
-  const urlParams = new URLSearchParams(window.location.search);
-  const nama = urlParams.get('nama');
-  const kepada = document.getElementById('kepada');
-  if (nama && nama.trim() !== "") {
-    const cap = nama.replace(/\b\p{L}/gu, c => c.toUpperCase());
-    kepada.textContent = "Kepada Yth. " + cap;
-  }
-
-  // --- Audio refs ---
-  const musicInvite = document.getElementById('musicInvite'); // romantis.mp3
-  const musicMeme   = document.getElementById('musicMeme');   // meme-laugh.mp3
-  musicInvite.volume = 0.7;
-  musicMeme.volume   = 1.0;
-
-  const overlay = document.getElementById('overlay');
-  const content = document.getElementById('content');
-  const btnOpen = document.getElementById('btnOpen');
-  const btnEnableAudio = document.getElementById('btnEnableAudio');
-
-  // --- Definisikan cue bawaan (opsional) ---
-  // Misal reff dimulai 45s berakhir 75s
-  const cues = {
-    reff: { start: 40, end: 180 },     // loop 45–75 detik
-  };
-
-  // --- Baca parameter URL untuk kontrol start/loop segmen ---
-  function getCueFromURL() {
-    const cueName = urlParams.get('cue');
-    const startParam = urlParams.get('start');
-    const endParam = urlParams.get('end');
-
-    if (cueName && cues[cueName]) {
-      return { start: cues[cueName].start, end: cues[cueName].end };
+    const urlParams = new URLSearchParams(window.location.search);
+    const nama = urlParams.get('nama');
+    const kepada = document.getElementById('kepada');
+    if (nama && nama.trim() !== "") {
+      const cap = nama.replace(/\b\p{L}/gu, c => c.toUpperCase());
+      kepada.textContent = "Kepada Yth. " + cap;
     }
 
-    const start = startParam ? Number(startParam) : null;
-    const end   = endParam   ? Number(endParam)   : null;
-    if (Number.isFinite(start)) {
-      return { start, end: Number.isFinite(end) ? end : null };
-    }
-    return null; // tidak ada parameter khusus
-  }
+    const overlay = document.getElementById('overlay');
+    const content = document.getElementById('content');
+    const btnOpen = document.getElementById('btnOpen');
+    const btnAudio = document.getElementById('btnAudio');
 
-  const segment = getCueFromURL(); // {start, end} atau null
+    const musicInvite = document.getElementById('musicInvite');
+    const musicMeme   = document.getElementById('musicMeme');
 
-  // --- Helper: fade in (biar halus saat mulai di tengah lagu) ---
-  async function fadeIn(audio, durationMs = 600, targetVol = 0.7) {
-    const steps = 20;
-    const step = targetVol / steps;
-    const interval = durationMs / steps;
-    audio.volume = 0;
-    try { await audio.play(); } catch {}
-    let i = 0;
-    const timer = setInterval(() => {
-      i++;
-      audio.volume = Math.min(targetVol, i * step);
-      if (i >= steps) clearInterval(timer);
-    }, interval);
-  }
+    // Volume
+    musicInvite.volume = 0.7;
+    musicMeme.volume   = 1.0;
 
-  // --- Play dari waktu tertentu (handle metadata) ---
-  async function playFrom(audio, startSec = 0, loopEndSec = null) {
-    const setAndPlay = async () => {
-      // clamp biar tidak melebihi durasi
-      const s = Math.max(0, Math.min(startSec, (audio.duration || startSec)));
-      audio.currentTime = s;
-      if (loopEndSec && loopEndSec > s) {
-        // loop segmen s..loopEndSec
-        audio.loop = false; // kita loop manual
-        audio.addEventListener('timeupdate', onTimeUpdate);
-        function onTimeUpdate() {
-          if (audio.currentTime >= loopEndSec) {
-            audio.currentTime = s; // balik ke awal segmen
-          }
-        }
+    // Tombol audio toggle
+    let isPlayingInvite = false;
+    btnAudio.addEventListener('click', async () => {
+      if (isPlayingInvite) {
+        musicInvite.pause();
+        btnAudio.textContent = "▶️";
       } else {
-        audio.loop = true; // putar penuh kalau tidak segmen
+        try { await musicInvite.play(); } catch {}
+        btnAudio.textContent = "⏸️";
       }
-      // gunakan fadeIn agar transisi halus (atau pakai audio.play())
-      await fadeIn(audio, 500, audio.volume || 0.7);
-    };
+      isPlayingInvite = !isPlayingInvite;
+    });
 
-    if (audio.readyState >= 1) {
-      await setAndPlay();
-    } else {
-      audio.addEventListener('loadedmetadata', setAndPlay, { once: true });
-      try { await audio.load(); } catch {}
-    }
-  }
+    // Mulai musik undangan saat overlay di-tap
+    overlay.addEventListener('pointerdown', async () => {
+      if (!isPlayingInvite) {
+        try { await musicInvite.play(); isPlayingInvite = true; btnAudio.textContent = "⏸️ Musik"; } catch {}
+      }
+    }, { once: true });
 
-  // --- Coba play helper (tampilkan tombol enable jika gagal autoplay) ---
-  async function tryPlay(el) {
-    try {
-      await el.play();
-      btnEnableAudio.style.display = 'none';
-      return true;
-    } catch {
-      btnEnableAudio.style.display = 'inline-block';
-      return false;
-    }
-  }
+    // Buka prank
+    btnOpen.addEventListener('click', async () => {
+      musicInvite.pause();
+      musicInvite.currentTime = 0;
+      isPlayingInvite = false;
+      btnAudio.textContent = "▶️";
 
-  // --- Mulai musik undangan saat interaksi pertama di overlay ---
-  let inviteStarted = false;
-  async function startInviteMusicOnce() {
-    if (inviteStarted) return;
-    inviteStarted = true;
+      try { await musicMeme.play(); } catch {}
 
-    // Jika ada parameter start/cue → mulai dari situ; kalau tidak → dari 0
-    if (segment) {
-      musicInvite.volume = 0.7; // target
-      await playFrom(musicInvite, segment.start, segment.end || null);
-    } else {
-      await tryPlay(musicInvite); // mulai normal
-    }
-  }
-  overlay.addEventListener('pointerdown', startInviteMusicOnce, { once: true });
-  btnOpen.addEventListener('click', startInviteMusicOnce, { once: true });
-
-  // Tombol bantuan jika autoplay diblokir
-  btnEnableAudio.addEventListener('click', async () => {
-    if (segment) {
-      await playFrom(musicInvite, segment.start, segment.end || null);
-    } else {
-      await tryPlay(musicInvite);
-    }
-  });
-
-  // --- Klik "Buka Undangan": ganti ke musik meme + buka konten ---
-  btnOpen.addEventListener('click', async () => {
-    // Stop romantis, ganti meme tawa
-    musicInvite.pause();
-    musicInvite.currentTime = 0;
-    await tryPlay(musicMeme);
-
-    // Buka konten
-    document.body.classList.remove('locked');
-    content.style.display = 'block';
-    overlay.classList.add('hidden');
-    setTimeout(() => { overlay.style.display = 'none'; }, 520);
-  });
-</script>
-
+      document.body.classList.remove('locked');
+      content.style.display = 'block';
+      overlay.classList.add('hidden');
+      setTimeout(() => { overlay.style.display = 'none'; }, 520);
+    });
+  </script>
 </body>
 </html>
-
-
-
